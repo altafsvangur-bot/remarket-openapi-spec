@@ -1,0 +1,150 @@
+openapi: "3.1.0"
+info:
+  title: ReMarket API
+  description: |
+    Public REST API for ReMarket — Germany's first Agent-Commerce
+    secondhand marketplace. Read access without authentication.
+  version: "0.1.0"
+  contact:
+    name: ReMarket
+    url: https://remarket.de
+  license:
+    name: MIT
+
+servers:
+  - url: https://api.remarket.de/v1
+    description: Production
+  - url: http://localhost:3000/api/v1
+    description: Local development
+
+paths:
+  /listings:
+    get:
+      operationId: searchListings
+      summary: Search listings
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string }
+          description: Search query (natural language)
+          example: "Fahrrad Linden"
+        - name: location
+          in: query
+          schema: { type: string }
+          description: City or district
+          example: "Hannover-Linden"
+        - name: category
+          in: query
+          schema: { type: string }
+        - name: min_price
+          in: query
+          schema: { type: number }
+        - name: max_price
+          in: query
+          schema: { type: number }
+          example: 200
+        - name: condition_min
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 10 }
+          description: Minimum condition score (1-10)
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [relevance, price_asc, price_desc, newest, closest]
+          default: relevance
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20, maximum: 100 }
+      responses:
+        "200":
+          description: List of matching listings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total: { type: integer }
+                  listings:
+                    type: array
+                    items: { $ref: "#/components/schemas/ListingSummary" }
+
+  /listings/{id}:
+    get:
+      operationId: getListing
+      summary: Get listing details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Full listing details
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Listing" }
+
+  /price-check:
+    post:
+      operationId: checkPrice
+      summary: AI price suggestion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, condition]
+              properties:
+                title: { type: string, example: "iPhone 14 Pro 128GB" }
+                condition: { type: string, enum: [new, like_new, good, fair, poor] }
+                category: { type: string }
+                original_price: { type: number }
+      responses:
+        "200":
+          description: Price suggestion
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  suggested_price: { type: number }
+                  price_range: { type: object, properties: { min: { type: number }, max: { type: number } } }
+                  confidence: { type: number }
+                  reasoning: { type: string }
+
+components:
+  schemas:
+    ListingSummary:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        price: { type: number }
+        currency: { type: string, default: "EUR" }
+        condition_score: { type: integer, minimum: 1, maximum: 10 }
+        location: { type: string }
+        image_url: { type: string, format: uri }
+        seller_rating: { type: number }
+        created_at: { type: string, format: date-time }
+
+    Listing:
+      allOf:
+        - $ref: "#/components/schemas/ListingSummary"
+        - type: object
+          properties:
+            description: { type: string }
+            category: { type: string }
+            subcategory: { type: string }
+            original_price: { type: number }
+            defects: { type: string }
+            images: { type: array, items: { type: string, format: uri } }
+            seller:
+              type: object
+              properties:
+                name: { type: string }
+                rating: { type: number }
+                transactions: { type: integer }
+                response_time_hours: { type: number }
+                member_since: { type: string, format: date }
